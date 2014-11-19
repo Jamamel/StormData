@@ -87,13 +87,9 @@ sum(y2$V1[1:10])/sum(y2$V1)
 # coverage % injuries
 sum(y2$V2[1:10])/sum(y2$V2)
 
-
-
 # no events with fatalities or injuries have missing beginning date (bgn_date)
 healthd[is.na(bgn_date),.N]
 healthd[,year := year(bgn_date)]
-
-
 
 # unique(healthd$event)
 # healthd[,.N,by = event][order(-N),]
@@ -117,20 +113,17 @@ plothd[!event %in% y$event[1:5],event := 'other']
 plothd <- plothd[,sum(frequency), by = c('variable','event','year5')]
 setnames(plothd,'V1','cases')
 
-
-
-
-
-
 # plot fatality and injurie timelines, and bars with historics
 library(ggplot2)
 library(grid)
+library(scales)
 ggplot(plothd,aes(x = year5,y = cases,group = event, fill = event)) +
   geom_bar(stat = 'identity') +
   ggtitle("U.S. Health Damage by Event per 5-year Period") +
   facet_grid(variable ~ ., scales = "free_y") +
   scale_fill_brewer(palette = 'Set2') +
   scale_x_discrete(name = "") +
+  scale_y_continuous(labels = comma) +
   theme(legend.position = "bottom",
         panel.margin = unit(2, "lines"),
         panel.background = element_rect(fill = NA),
