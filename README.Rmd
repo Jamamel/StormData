@@ -3,10 +3,10 @@ title: "StormData - Identifying the health & economical impact of severe weather
 author: "Jamamel"
 date: "Thursday, November 20, 2014"
 output:
-  html_document:
-    fig_caption: yes
-    keep_md: yes
-    toc: yes
+html_document:
+fig_caption: yes
+keep_md: yes
+toc: yes
 ---
 
 # Synopsis
@@ -41,7 +41,7 @@ library(scales)
 library(gridExtra)
 ```
 
-```{r setoptions, echo = FALSE, results='hide',include=FALSE}
+```{r setoptions, echo = FALSE, results='hide'}
 suppressWarnings(library(knitr))
 suppressWarnings(library(data.table))
 suppressWarnings(library(lubridate))
@@ -87,7 +87,7 @@ str(d,1)
 
 We then transform beginning & end date & time variables to proper date formats.
 
-```{r, recodedate, eval = FALSE}
+```{r recodedate, eval = FALSE}
 datecols <- c('bgn_date','end_date')
 timecols <- c('end_date','end_time')
 
@@ -96,7 +96,7 @@ d[,eval(timecols) := lapply(.SD, as.ITime,format = "%H%M"), .SDcols = timecols]
 setkey(d,refnum)
 ```
 
-```{r, recodedateinv, echo = FALSE,results = 'hide', cache=TRUE}
+```{r recodedateinv, echo = FALSE,results = 'hide', cache=TRUE}
 datecols <- c('bgn_date','end_date')
 timecols <- c('end_date','end_time')
 
@@ -108,7 +108,7 @@ setkey(d,refnum)
 
 In order to translate property and crop damages to numerical values, we must create a look-up table for values *k, m,* & *b* (multipliers for thousands, millions, and billions).
 
-```{r, dmgmult, results = 'hide'}
+```{r dmgmult, results = 'hide'}
 # we recode to NA crop damage multiplier codes with ambiguous interpretations
 # (!cropdmgexp %in% c('k','m','b'))
 d[,cropdmgexp := tolower(cropdmgexp)]
@@ -131,7 +131,270 @@ setkey(transtab,code)
 transtab
 ```
 
-```{r, dmgmulttab, results='markup', echo = FALSE}
+```{r dmgmulttab, results='markup', echo = FALSE}
 transtab
+```
+
+We then translate these property and crop damage multiplier in our data into numerical values
+
+```{r numericalexps, results='hide'}
+# translsate the crop damage multiplier to numerical by creating the variable numcropexp
+# this is created by looking up the values of cropdmgexp in transtab
+d[,numcropexp := transtab[cropdmgexp,'value', with = F]]
+
+# calculate numeric crop damage (numcropexp * cropdmg)
+d[,crop := (numcropexp * cropdmg)]
+
+# translsate the property damage multiplier to numerical analogously to crop damage
+d[,numpropexp := transtab[propdmgexp,'value', with = F]]
+
+# calculate numeric property damage (numcropexp * cropdmg)
+d[,property := (numpropexp * propdmg)]
+```
+```{r numdmgsummary, results='markup'}
+summary(d$crop)
+summary(d$property)
+```
+
+
+Once these numerical economic variables have been calculated, we write a function that will aggregate and plot economic and health damage separately.
+
+The input parameters for this function are:
+
+- **d**: loaded storm data.table
+- **damagecols**: character vector with pairs of variables to include in each analysis (e.g. damagecols = c('health', 'fatalities') in health damage case)
+- **damage**: character value with category of analysis (i.e. 'health' or 'economic')
+- **yname**: character value for resulting *y-axis* label in plot
+- **yfrmt**: character value for *y-axis* scale format in plot
+
+The object returned by said function is a list with 3 elements to it:
+
+- **dt**: resulting data.table after calculation of new metrics
+- **viz**: ggplot2 barchart of selected damage analysis
+- **coverage**: list containing descriptives of % of damage covered in analysis
+
+```{r dmgfun, results='markup', cache=TRUE}
+describeDmg <- function(d, damagecols, damage, yname, yfrmt){
+  
+  # we create a string to subset our data and extract only those weather events
+  # positive damage (e.g. crop & property damage are > 0 in the economic damage case)
+  subsform <- paste(damagecols[1], ' > 0 & ', damagecols[2],' > 0', sep = '')
+  
+  # create subset data.table with subset string created above
+  dmgdt <- d[eval(parse(text = subsform))]
+  dmgdt[,.N,by = evtype][order(-N),]
+  
+  # re-coding of events into "event" variable.
+  # events are changed to lower case and some re-coding/cleaning is applied to clean up records.
+  dmgdt[,event := tolower(evtype)]
+  dmgdt[,.N,by = event][order(-N),]
+  
+  dmgdt[grepl('tornado',event),event := 'tornado']
+  dmgdt[grepl('hurricane',event),event := 'hurricane']
+  dmgdt[grepl('typhoon',event),event := 'hurricane']
+  dmgdt[grepl('winter weather',event),event := 'winter weather']
+  dmgdt[grepl('cold',event),event := 'winter weather']
+  dmgdt[grepl('thunderstorm',event),event := 'thunderstorm']
+  dmgdt[grepl('flood',event),event := 'flood']
+  dmgdt[grepl('heat',event),event := 'heat']
+  dmgdt[grepl('high wind',event),event := 'high wind']
+  
+  dmgdt[event %in% c('wild fires','wild/forest fire'),event := 'wildfire']
+  dmgdt[event == 'rip currents',event := 'rip current']
+  dmgdt[event %in% c('tstm wind'),event := 'thunderstorm']
+  
+  # in order to make visualization easier, damage by event per measure (i.e. 'fatalities' or 'injuries')
+  # is aggregated and ranked. 
+  # coverage of events recoded
+  sumsform <- paste('list(sum(', damagecols[1], '), sum(', damagecols[2],'))', sep = '')
+  x <- dmgdt[,eval(parse(text = sumsform)),by = event]
+  x[,eval(parse(text = damage)) := V1 + V2]
+  
+  
+  # for each damage measure (e.g. 'fatality' & 'injury' in health case) we identify the top ten 
+  # event types in the ranked/ordered aggregation of total damage by event
+  # coverage % of top ten events in total damage for variable 1
+  
+  coverage  <-  vector('list',4)
+  names(coverage) <- c(damagecols, paste(damagecols,2011,sep = ''))
+  
+  y <- x[order(-V1),]; y
+  coverage[[1]] <- sum(y$V1[1:10])/sum(y$V1)
+  
+  # coverage % of top ten events in total damage for variable 2
+  y <- x[order(-V2),]
+  coverage[[2]] <- sum(y$V2[1:10])/sum(y$V2)
+  
+  # no events with fatalities or injuries have missing beginning date (bgn_date)
+  dmgdt[is.na(bgn_date),.N]
+  
+  # create year variable from beginning date of each event (for binning purposes in plot)
+  library(lubridate)
+  dmgdt[,year := year(bgn_date)]
+  
+  
+  # we perform analogous analysis by damage variable focusing on years 2010 & 2011
+  x2 <- dmgdt[year %in% 2010:2011,eval(parse(text = sumsform)),by = event]
+  x2 <- x2[,damage := V1 + V2][order(-damage),]
+  
+  # coverage % fatalities
+  y2 <- x2[order(-V1),]; y2
+  coverage[[3]] <- sum(y2$V1[1:10])/sum(y2$V1)
+  
+  # coverage % injuries
+  y2 <- x2[order(-V2),]
+  coverage[[4]] <- sum(y2$V2[1:10])/sum(y2$V2)
+  
+  dmgcol1 <- paste('sum(',damagecols[1],')',sep = '')
+  dmgcol2 <- paste('sum(',damagecols[2],')',sep = '')
+  
+  # create tidy dataset (tidyhd0) by subsetting dmgdt across observations relevant to top ten events
+  # then rbind and identify unique observations
+  tidyhd1 <- dmgdt[event %in% dmgdt[,eval(parse(text = dmgcol1)),by = event][order(-V1),][1:10,event],]
+  tidyhd2 <- dmgdt[event %in% dmgdt[,eval(parse(text = dmgcol2)),by = event][order(-V1),][1:10,event],]
+  tidyhd0 <- unique(rbind(tidyhd1,tidyhd2))
+  setkey(tidyhd0,refnum)
+  
+  # we melt our tidy dataset to obtain a better data structure for plotting
+  tidyhd <- melt(tidyhd0,id.vars = c('refnum','event','bgn_date','year'),measure.vars = damagecols)
+  
+  # aggregate damage across variables per year for plotting
+  plothd <- tidyhd[,sum(value), by = c('variable','event','year')]
+  setnames(plothd,'V1','frequency')
+  
+  # for better plotting purposes, bin years into 3-year periods and add bin to plothd
+  year <- plothd$year
+  
+  br <- seq(from = min(year),to = min(year) + floor(diff(range(year))/3)*3 + 3, by = 3)
+  br[length(br)] <- max(year)
+  br <- unique(br)
+  plothd[,year3 := cut(year, br, include.lowest = T)]
+  
+  # Identify top 4 events for each event and recode rest of top 10 to 'other'
+  plothd[!event %in% union(y$event[1:4], y2$event[1:4]),event := 'other']
+  
+  plothd <- plothd[,sum(frequency), by = c('variable','event','year3')]
+  setnames(plothd,'V1','frequency')
+  
+  
+  # plot fatality and injurie timelines, and bars with historics
+  capwords <- function(s, strict = FALSE) {
+    cap <- function(s) paste(toupper(substring(s, 1, 1)),
+                             {s <- substring(s, 2); if(strict) tolower(s) else s},
+                             sep = "", collapse = " " )
+    sapply(strsplit(s, split = " "), cap, USE.NAMES = !is.null(names(s)))
+    }
+  
+  # create damage barchart
+  title <- paste('U.S.',capwords(damage), ' Damage by Event per 3-year Period')
+  p <- ggplot(plothd,aes(x = year3,y = frequency,group = event, fill = event)) +
+    geom_bar(stat = 'identity') +
+    ggtitle(title) +
+    facet_grid(variable ~ ., scales = "free_y") +
+    scale_fill_brewer(palette = 'Set2') +
+    scale_x_discrete(name = "") +
+    scale_y_continuous(labels = eval(parse(text = yfrmt)), name = yname) +
+    theme(legend.position = "bottom",
+          panel.margin = unit(2, "lines"),
+          panel.background = element_rect(fill = NA),
+          strip.text.y = element_text(size=14, face="bold"),
+          strip.background = element_blank(),
+          axis.text.x = element_text(angle=90, vjust=0.5, size = 12),
+          axis.ticks.y = element_blank(),
+          plot.title = element_text(face="bold", size = 16),
+          legend.title=element_blank())
+  list(dt = tidyhd0, viz = p, coverage = coverage)
+  }
+```
+
+
+# Results
+
+We now evaluate and produce the analysis for health and economic damage separately calling the function above.
+
+```{r dmgfuncall, results='markup'}
+# we can then evaluate each damage analysis separately using said function
+ecodmg <- describeDmg(d,c('crop','property'),'economic', 'value', 'dollar')
+hlthdmg <- describeDmg(d,c('fatalities','injuries'),'health', 'cases', 'comma')
+
+# look at coverage of events selected for analysis and visualization
+ecodmg$coverage
+hlthdmg$coverage
+```
+
+After running the analysis and are happy with the coverage we get for each piece, we now present the results of each of these. We plot fatality & injury damage, and property & crop damage as the sum of these values by 3-year periods across the whole of the U.S.
+
+```{r healthplot, results='markup', fig.height=10}
+hlthdmg$viz
+```
+
+```{r economicplot, results='markup', fig.height=10}
+ecodmg$viz
+```
+
+Finally, we look at the relationship between health (injuries + fatalities) and economic (crop + property damage) and plot a log-itized scatter of these aggregates by event.
+
+```{r finalplot, results='hide', fig.height = 7}
+# rbind economic & health damage obtained previously
+eco <- copy(ecodmg[[1]])
+hlt <- copy(hlthdmg[[1]])
+
+hltmask <- hlt[!refnum %in% eco$refnum,'refnum',with = F]
+
+# calculate total health & economic damages
+x <- rbind(eco,hlt[hltmask,])
+x[,health := fatalities + injuries]
+x[,economic := crop + property]
+
+# apply analogoues re-coding to events identified for plotting consistency
+finalplotdt  <- x[,lapply(.SD,mean,na.rm = T), .SDcols = c('health','economic'), by = 'event']
+
+finalplotdt[grepl('tornado',event),event := 'tornado']
+finalplotdt[grepl('hurricane',event),event := 'hurricane']
+finalplotdt[grepl('typhoon',event),event := 'hurricane']
+finalplotdt[grepl('winter weather',event),event := 'winter weather']
+finalplotdt[grepl('cold',event),event := 'winter weather']
+finalplotdt[grepl('thunderstorm',event),event := 'thunderstorm']
+finalplotdt[grepl('flood',event),event := 'flood']
+finalplotdt[grepl('heat',event),event := 'heat']
+finalplotdt[grepl('high wind',event),event := 'high wind']
+
+finalplotdt[event %in% c('wild fires','wild/forest fire'),event := 'wildfire']
+finalplotdt[event == 'rip currents',event := 'rip current']
+finalplotdt[event %in% c('tstm wind'),event := 'thunderstorm']
+
+
+# select cases where there both health & economic damage per event
+finalplotdt <- finalplotdt[health > 0 & economic > 0]
+
+# plot results
+p <- ggplot(finalplotdt,aes(x = health, y = economic)) +
+  geom_point(colour = 'red', size = 5) +
+  scale_shape(solid = TRUE) +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(stat = 'smooth', method = 'lm') +
+  geom_text(aes(label=event), vjust = -1) +
+  ggtitle('U.S. All-Time Mean Health vs. Economic Damage') +
+  theme(plot.title = element_text(size = 14, lineheight = -1, face="bold", vjust = 1.5),
+        panel.background = element_rect(fill = NA),
+        panel.margin = unit(2, "lines"),
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.ticks.x = element_blank(),
+        plot.title = element_text(face="bold", size = 16),
+        legend.title=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.grid.major=element_blank(),
+        axis.title.x = element_text(face = 'bold', size = 14),
+        axis.title.y = element_text(face = 'bold', size = 14))
+
+g <- arrangeGrob(p, sub = textGrob("Note: log10 transofmration applied to both axes - 95% confidence interval.", x = 0, hjust = -0.1, vjust=-0.5, gp = gpar(fontface = "italic", fontsize = 10)))
+
+```
+
+```{r plotlast, results='markup', fig.height = 7, echo=FALSE}
+g
 ```
 

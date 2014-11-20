@@ -268,3 +268,8 @@ p <- ggplot(finalplotdt,aes(x = health, y = economic)) +
 
 g <- arrangeGrob(p, sub = textGrob("Note: log10 transofmration applied to both axes - 95% confidence interval.", x = 0, hjust = -0.1, vjust=-0.5, gp = gpar(fontface = "italic", fontsize = 10)))
 # ggsave("/Users/Alan/Desktop/plot_grid_extra.png", g)
+
+
+library(knitr)
+knit2html('README.Rmd')
+browseURL('README.html')
