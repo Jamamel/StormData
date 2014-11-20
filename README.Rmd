@@ -1,5 +1,5 @@
 ---
-title: "StormData - Reproducible Research Project 2"
+title: "StormData - Identifying the health & economical impact of severe weather events"
 author: "Jamamel"
 date: "Thursday, November 20, 2014"
 output:
@@ -9,18 +9,113 @@ output:
     toc: yes
 ---
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+# Synopsis
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+The following analysis aims to assess the impact of sever weather events (e.g. tornadoes, floods) through recorded health & economic damaged observed in the U.S over from 1950 through 2011. The dataset used is the  U.S. National Oceanic and Atmospheric Administration's (NOAA) [storm database](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2). Recorded fatality, injury,property & crop damage entries across the country are broken down to identify leading events responsible historically for these losses. We present the top types of events to which these damages are associated so that budget allocation in prevention and reaction in disaster management is better allocated.This analysis is meant for the sole purpose of visualizing said distributions and relationships. No models or explicit recommendations are produced, but will hopefully help identify areas where plausible hypothesis can more thouroughly investigated in future endeavours.
 
-```{r}
-summary(cars)
+# Questions
+
+We aim to address two specific questions, though other corollary analyses are also presented:
+
+- Across the United States, which types of events are most harmful with respect to population health?
+- Across the United States, which types of events have the greatest economic consequences?
+
+# Data Processing
+
+For information about the data model, design and analyses performed to produce the storm data used, please refer to:
+
+- [National Weather Service Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+- [National Climatic Data Center Storm Events FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+
+The data was downloaded from the mentioned url and loaded into R
+
+```{r setoptionsinv, results='hide', eval = F}
+library(knitr)
+library(data.table)
+library(lubridate)
+library(magrittr)
+library(reshape2)
+library(ggplot2)
+library(grid)
+library(scales)
+library(gridExtra)
 ```
 
-You can also embed plots, for example:
-
-```{r, echo=FALSE}
-plot(cars)
+```{r setoptions, echo = F, results='hide',include=FALSE}
+suppressWarnings(library(knitr))
+suppressWarnings(library(data.table))
+suppressWarnings(library(lubridate))
+suppressWarnings(library(magrittr))
+suppressWarnings(library(reshape2))
+suppressWarnings(library(ggplot2))
+suppressWarnings(library(grid))
+suppressWarnings(library(scales))
+suppressWarnings(library(gridExtra))
+opts_chunk$set(echo = TRUE, results = 'hide')
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r readdata, eval = F}
+# create folder to store downloaded data in chosen working directory
+datadir <- paste(getwd(),'/data',sep = '')
+dir.create(datadir)
+
+# download data and store in data folder
+zipdata <- paste(datadir,'/StormData.csv.bz2',sep = '')
+# download.file('https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2',zipdata)
+
+
+# unzip and load downloaded data ---------------------------------------------------------
+# data will be uploaded and assigned to object "d" of class data.table
+# data.table allows for data manipulation by reference, avoiding unnecessary copying and
+# memory hoarding of large datasets (like the one in this analysis)
+
+
+# read sample to determine column classes for full upload
+d <- read.csv(bzfile(zipdata),nrows = 5000, header = T,stringsAsFactors = F)
+
+cclass <- sapply(d,class)
+cclass[c('BGN_TIME','END_TIME','F')] <- 'character'
+cclass[cclass %in% 'logical'] <- 'character'
+
+# read full dataset after classes have been identified
+d <- data.table(read.table(bzfile(zipdata),header = T, colClasses = cclass,sep = ',',na.strings = ''))
+setnames(d, old = colnames(d), new = tolower(colnames(d)))
+str(d,1)
+```
+
+```{r readdatainv, echo = F, results='markup', cache=TRUE}
+# create folder to store downloaded data in chosen working directory
+datadir <- paste(getwd(),'/data',sep = '')
+suppressWarnings(dir.create(datadir))
+
+# download data and store in data folder
+zipdata <- paste(datadir,'/StormData.csv.bz2',sep = '')
+# download.file('https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2',zipdata)
+
+
+# unzip and load downloaded data ---------------------------------------------------------
+# data will be uploaded and assigned to object "d" of class data.table
+# data.table allows for data manipulation by reference, avoiding unnecessary copying and
+# memory hoarding of large datasets (like the one in this analysis)
+
+
+# read sample to determine column classes for full upload
+d <- read.csv(bzfile(zipdata),nrows = 5000, header = T,stringsAsFactors = F)
+cclass <- sapply(d,class)
+cclass[c('BGN_TIME','END_TIME','F')] <- 'character'
+cclass[cclass %in% 'logical'] <- 'character'
+
+# read full dataset after classes have been identified
+d <- data.table(read.table(bzfile(zipdata),header = T, colClasses = cclass,sep = ',',na.strings = ''))
+setnames(d, old = colnames(d), new = tolower(colnames(d)))
+str(d,1)
+```
+
+We then transform
+
+datecols <- c('bgn_date','end_date')
+timecols <- c('end_date','end_time')
+
+d[,eval(datecols) := lapply(.SD, as.IDate,format = '%m/%d/%Y'), .SDcols = datecols]
+d[,eval(timecols) := lapply(.SD, as.ITime,format = "%H%M"), .SDcols = timecols]
+setkey(d,refnum)
