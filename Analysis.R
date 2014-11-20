@@ -1,3 +1,5 @@
+library(RCurl)
+
 library(data.table)
 library(lubridate)
 library(magrittr)

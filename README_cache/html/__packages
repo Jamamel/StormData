@@ -1,0 +1,9 @@
+base
+knitr
+data.table
+lubridate
+magrittr
+reshape2
+ggplot2
+scales
+gridExtra

@@ -1,13 +1,6 @@
----
-title: "StormData - Identifying the health & economical impact of severe weather events"
-author: "Jamamel"
-date: "Thursday, November 20, 2014"
-output:
-html_document:
-fig_caption: yes
-keep_md: yes
-toc: yes
----
+# StormData - Identifying the health & economical impact of severe weather events
+Jamamel  
+Thursday, November 20, 2014  
 
 # Synopsis
 
@@ -43,6 +36,14 @@ library(gridExtra)
 ```
 
 
+```
+## 
+## Attaching package: 'lubridate'
+## 
+## The following objects are masked from 'package:data.table':
+## 
+##     hour, mday, month, quarter, wday, week, yday, year
+```
 
 
 ```r
@@ -409,14 +410,14 @@ After running the analysis and are happy with the coverage we get for each piece
 hlthdmg$viz
 ```
 
-![plot of chunk healthplot](figure/healthplot-1.png) 
+![](./README_files/figure-html/healthplot-1.png) 
 
 
 ```r
 ecodmg$viz
 ```
 
-![plot of chunk economicplot](figure/economicplot-1.png) 
+![](./README_files/figure-html/economicplot-1.png) 
 
 Finally, we look at the relationship between health (injuries + fatalities) and economic (crop + property damage) and plot a log-itized scatter of these aggregates by event.
 
@@ -480,5 +481,4 @@ p <- ggplot(finalplotdt,aes(x = health, y = economic)) +
 g <- arrangeGrob(p, sub = textGrob("Note: log10 transofmration applied to both axes - 95% confidence interval.", x = 0, hjust = -0.1, vjust=-0.5, gp = gpar(fontface = "italic", fontsize = 10)))
 ```
 
-![plot of chunk plotlast](figure/plotlast-1.png) 
-
+![](./README_files/figure-html/plotlast-1.png) 
