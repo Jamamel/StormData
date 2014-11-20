@@ -27,7 +27,7 @@ For information about the data model, design and analyses performed to produce t
 - [National Weather Service Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
 - [National Climatic Data Center Storm Events FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
 
-The data was downloaded from the mentioned url and loaded into R
+All required R packages are loaded and data downloaded from the mentioned url and loaded into R
 
 ```{r setoptionsinv, results='hide', eval = F}
 library(knitr)
@@ -41,7 +41,7 @@ library(scales)
 library(gridExtra)
 ```
 
-```{r setoptions, echo = F, results='hide',include=FALSE}
+```{r setoptions, echo = FALSE, results='hide',include=FALSE}
 suppressWarnings(library(knitr))
 suppressWarnings(library(data.table))
 suppressWarnings(library(lubridate))
@@ -54,36 +54,7 @@ suppressWarnings(library(gridExtra))
 opts_chunk$set(echo = TRUE, results = 'hide')
 ```
 
-```{r readdata, eval = F}
-# create folder to store downloaded data in chosen working directory
-datadir <- paste(getwd(),'/data',sep = '')
-dir.create(datadir)
-
-# download data and store in data folder
-zipdata <- paste(datadir,'/StormData.csv.bz2',sep = '')
-# download.file('https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2',zipdata)
-
-
-# unzip and load downloaded data ---------------------------------------------------------
-# data will be uploaded and assigned to object "d" of class data.table
-# data.table allows for data manipulation by reference, avoiding unnecessary copying and
-# memory hoarding of large datasets (like the one in this analysis)
-
-
-# read sample to determine column classes for full upload
-d <- read.csv(bzfile(zipdata),nrows = 5000, header = T,stringsAsFactors = F)
-
-cclass <- sapply(d,class)
-cclass[c('BGN_TIME','END_TIME','F')] <- 'character'
-cclass[cclass %in% 'logical'] <- 'character'
-
-# read full dataset after classes have been identified
-d <- data.table(read.table(bzfile(zipdata),header = T, colClasses = cclass,sep = ',',na.strings = ''))
-setnames(d, old = colnames(d), new = tolower(colnames(d)))
-str(d,1)
-```
-
-```{r readdatainv, echo = F, results='markup', cache=TRUE}
+```{r readdata, cache=TRUE, results='markup'}
 # create folder to store downloaded data in chosen working directory
 datadir <- paste(getwd(),'/data',sep = '')
 suppressWarnings(dir.create(datadir))
@@ -101,21 +72,66 @@ zipdata <- paste(datadir,'/StormData.csv.bz2',sep = '')
 
 # read sample to determine column classes for full upload
 d <- read.csv(bzfile(zipdata),nrows = 5000, header = T,stringsAsFactors = F)
+
 cclass <- sapply(d,class)
 cclass[c('BGN_TIME','END_TIME','F')] <- 'character'
 cclass[cclass %in% 'logical'] <- 'character'
 
 # read full dataset after classes have been identified
+# recode all column names to lower case for ease of use and to match coding standards
 d <- data.table(read.table(bzfile(zipdata),header = T, colClasses = cclass,sep = ',',na.strings = ''))
 setnames(d, old = colnames(d), new = tolower(colnames(d)))
 str(d,1)
 ```
 
-We then transform
 
+We then transform beginning & end date & time variables to proper date formats.
+
+```{r, recodedate, eval = FALSE}
 datecols <- c('bgn_date','end_date')
 timecols <- c('end_date','end_time')
 
 d[,eval(datecols) := lapply(.SD, as.IDate,format = '%m/%d/%Y'), .SDcols = datecols]
 d[,eval(timecols) := lapply(.SD, as.ITime,format = "%H%M"), .SDcols = timecols]
 setkey(d,refnum)
+```
+
+```{r, recodedateinv, echo = FALSE,results = 'hide', cache=TRUE}
+datecols <- c('bgn_date','end_date')
+timecols <- c('end_date','end_time')
+
+d[,eval(datecols) := lapply(.SD, as.IDate,format = '%m/%d/%Y'), .SDcols = datecols]
+d[,eval(timecols) := lapply(.SD, as.ITime,format = "%H%M"), .SDcols = timecols]
+setkey(d,refnum)
+```
+
+
+In order to translate property and crop damages to numerical values, we must create a look-up table for values *k, m,* & *b* (multipliers for thousands, millions, and billions).
+
+```{r, dmgmult, results = 'hide'}
+# we recode to NA crop damage multiplier codes with ambiguous interpretations
+# (!cropdmgexp %in% c('k','m','b'))
+d[,cropdmgexp := tolower(cropdmgexp)]
+d[!cropdmgexp %in% c('k','m','b'),cropdmgexp := NA]
+
+
+# we recode to NA property damage multiplier codes with ambiguous interpretations
+# (!propdmgexp %in% c('k','m','b'))
+d[,propdmgexp := tolower(propdmgexp)]
+d[!propdmgexp %in% c('k','m','b'),propdmgexp := NA]
+
+
+transtab <- list(list('m',1e+06),
+                 list('k',1e+03),
+                 list('b',1e+09)) %>%
+  rbindlist
+
+setnames(transtab, old = c('V1','V2'), new = c('code', 'value'))
+setkey(transtab,code)
+transtab
+```
+
+```{r, dmgmulttab, results='markup', echo = FALSE}
+transtab
+```
+

@@ -20,7 +20,7 @@ For information about the data model, design and analyses performed to produce t
 - [National Weather Service Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
 - [National Climatic Data Center Storm Events FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
 
-The data was downloaded from the mentioned url and loaded into R
+All required R packages are loaded and data downloaded from the mentioned url and loaded into R
 
 
 ```r
@@ -41,7 +41,7 @@ library(gridExtra)
 ```r
 # create folder to store downloaded data in chosen working directory
 datadir <- paste(getwd(),'/data',sep = '')
-dir.create(datadir)
+suppressWarnings(dir.create(datadir))
 
 # download data and store in data folder
 zipdata <- paste(datadir,'/StormData.csv.bz2',sep = '')
@@ -62,16 +62,10 @@ cclass[c('BGN_TIME','END_TIME','F')] <- 'character'
 cclass[cclass %in% 'logical'] <- 'character'
 
 # read full dataset after classes have been identified
+# recode all column names to lower case for ease of use and to match coding standards
 d <- data.table(read.table(bzfile(zipdata),header = T, colClasses = cclass,sep = ',',na.strings = ''))
 setnames(d, old = colnames(d), new = tolower(colnames(d)))
 str(d,1)
-```
-
-
-```
-## Warning in dir.create(datadir): 'C:\Users\Jamamel\Google Drive\John
-## Hopkins Data Science\Reproducible Research\Project 2\StormData\data'
-## already exists
 ```
 
 ```
@@ -116,11 +110,53 @@ str(d,1)
 ##  - attr(*, ".internal.selfref")=<externalptr>
 ```
 
-We then transform
 
+We then transform beginning & end date & time variables to proper date formats.
+
+
+```r
 datecols <- c('bgn_date','end_date')
 timecols <- c('end_date','end_time')
 
 d[,eval(datecols) := lapply(.SD, as.IDate,format = '%m/%d/%Y'), .SDcols = datecols]
 d[,eval(timecols) := lapply(.SD, as.ITime,format = "%H%M"), .SDcols = timecols]
 setkey(d,refnum)
+```
+
+
+
+
+In order to translate property and crop damages to numerical values, we must create a look-up table for values *k, m,* & *b* (multipliers for thousands, millions, and billions).
+
+
+```r
+# we recode to NA crop damage multiplier codes with ambiguous interpretations
+# (!cropdmgexp %in% c('k','m','b'))
+d[,cropdmgexp := tolower(cropdmgexp)]
+d[!cropdmgexp %in% c('k','m','b'),cropdmgexp := NA]
+
+
+# we recode to NA property damage multiplier codes with ambiguous interpretations
+# (!propdmgexp %in% c('k','m','b'))
+d[,propdmgexp := tolower(propdmgexp)]
+d[!propdmgexp %in% c('k','m','b'),propdmgexp := NA]
+
+
+transtab <- list(list('m',1e+06),
+                 list('k',1e+03),
+                 list('b',1e+09)) %>%
+  rbindlist
+
+setnames(transtab, old = c('V1','V2'), new = c('code', 'value'))
+setkey(transtab,code)
+transtab
+```
+
+
+```
+##    code value
+## 1:    b 1e+09
+## 2:    k 1e+03
+## 3:    m 1e+06
+```
+

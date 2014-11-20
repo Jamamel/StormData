@@ -5,7 +5,7 @@ library(reshape2)
 library(ggplot2)
 library(grid)
 library(scales)
-
+library(gridExtra)
 
 
 # create folder to store downloaded data in chosen working directory
@@ -51,15 +51,15 @@ setkey(d,refnum)
 
 # we recode to NA crop damage multiplier codes with ambiguous interpretations
 # (!cropdmgexp %in% c('k','m','b'))
-d[,.N,by = cropdmgexp]
 d[,cropdmgexp := tolower(cropdmgexp)]
 d[!cropdmgexp %in% c('k','m','b'),cropdmgexp := NA]
+d[,.N,by = cropdmgexp]
 
 # we recode to NA property damage multiplier codes with ambiguous interpretations
 # (!propdmgexp %in% c('k','m','b'))
-d[,.N,by = propdmgexp]
 d[,propdmgexp := tolower(propdmgexp)]
 d[!propdmgexp %in% c('k','m','b'),propdmgexp := NA]
+d[,.N,by = propdmgexp]
 
 
 
@@ -266,6 +266,5 @@ p <- ggplot(finalplotdt,aes(x = health, y = economic)) +
         axis.title.x = element_text(face = 'bold', size = 14),
         axis.title.y = element_text(face = 'bold', size = 14))
 
-library(gridExtra)
 g <- arrangeGrob(p, sub = textGrob("Note: log10 transofmration applied to both axes - 95% confidence interval.", x = 0, hjust = -0.1, vjust=-0.5, gp = gpar(fontface = "italic", fontsize = 10)))
 # ggsave("/Users/Alan/Desktop/plot_grid_extra.png", g)
