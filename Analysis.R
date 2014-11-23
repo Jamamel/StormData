@@ -1,3 +1,4 @@
+library(knitr)
 library(RCurl)
 
 library(data.table)

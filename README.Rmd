@@ -28,7 +28,7 @@ For information about the data model, design and analyses performed to produce t
 
 All required R packages are loaded and data downloaded from the mentioned url and loaded into R
 
-```{r setoptionsinv, results='hide', eval = F}
+```{r setoptionsinv, results='hide', eval = FALSE}
 library(knitr)
 library(data.table)
 library(lubridate)
@@ -40,7 +40,7 @@ library(scales)
 library(gridExtra)
 ```
 
-```{r setoptions, echo = FALSE, results='hide'}
+```{r setoptions, echo = FALSE, results='hide', include=FALSE}
 suppressWarnings(library(knitr))
 suppressWarnings(library(data.table))
 suppressWarnings(library(lubridate))
@@ -53,7 +53,7 @@ suppressWarnings(library(gridExtra))
 opts_chunk$set(echo = TRUE, results = 'hide')
 ```
 
-```{r readdata, cache=TRUE, results='markup'}
+```{r readdata, results='markup'}
 # create folder to store downloaded data in chosen working directory
 datadir <- paste(getwd(),'/data',sep = '')
 suppressWarnings(dir.create(datadir))
@@ -95,7 +95,7 @@ d[,eval(timecols) := lapply(.SD, as.ITime,format = "%H%M"), .SDcols = timecols]
 setkey(d,refnum)
 ```
 
-```{r recodedateinv, echo = FALSE,results = 'hide', cache=TRUE}
+```{r recodedateinv, echo = FALSE,results = 'hide'}
 datecols <- c('bgn_date','end_date')
 timecols <- c('end_date','end_time')
 
@@ -172,7 +172,7 @@ The object returned by said function is a list with 3 elements to it:
 - **viz**: ggplot2 barchart of selected damage analysis
 - **coverage**: list containing descriptives of % of damage covered in analysis
 
-```{r dmgfun, results='markup', cache=TRUE}
+```{r dmgfun, results='markup'}
 describeDmg <- function(d, damagecols, damage, yname, yfrmt){
   
   # we create a string to subset our data and extract only those weather events
@@ -396,3 +396,24 @@ g <- arrangeGrob(p, sub = textGrob("Note: log10 transofmration applied to both a
 ```{r plotlast, results='markup', fig.height = 7, echo=FALSE}
 g
 ```
+
+The analysis therefore yields the following pieces of insight:
+
+1. Tornadoes have historically been responsible for a large number of health damage (injuries & deaths). However, there seems to be a lack of data for these sort of instances prior to 1992, so performing this sort of analysis on a total, historical basis may seem misleading. The roles of floods and heat-related catastrophes may be over-shadowed by such a bias in the data.
+2. Floods and hurricanes are by far historically (and on total, available data) the two types of events most responsible for economic damage.
+3. Note the 3-year binning means the latest range of data (2010-2011) would still include one more year worth of data once it becomes available.
+4. The scatter-plot of average damages per event type reveals the sort of events a government would need to focus on if they were keen to enforce a prevention/reaction policy to deal with each type. Ice storms and hurricanes appear to be serious enough on both dimensions to merit special attention. Events like lightning seem to be of the type that could be addressed with intensive information campaigns as all that needs to be addressed is the impact on health.
+
+# References
+
+GitHub link for all code relating to this analysis: [StormData Github](https://github.com/Jamamel/StormData)
+
+
+# System Setup
+
+For replication purposes, below is the session info relating to packages required for analysis.
+
+```{r sessioninfo, results = 'markup', echo = FALSE}
+sessionInfo()
+```
+

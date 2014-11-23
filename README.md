@@ -36,14 +36,6 @@ library(gridExtra)
 ```
 
 
-```
-## 
-## Attaching package: 'lubridate'
-## 
-## The following objects are masked from 'package:data.table':
-## 
-##     hour, mday, month, quarter, wday, week, yday, year
-```
 
 
 ```r
@@ -410,14 +402,14 @@ After running the analysis and are happy with the coverage we get for each piece
 hlthdmg$viz
 ```
 
-![](./README_files/figure-html/healthplot-1.png) 
+![](README_files/figure-html/healthplot-1.png) 
 
 
 ```r
 ecodmg$viz
 ```
 
-![](./README_files/figure-html/economicplot-1.png) 
+![](README_files/figure-html/economicplot-1.png) 
 
 Finally, we look at the relationship between health (injuries + fatalities) and economic (crop + property damage) and plot a log-itized scatter of these aggregates by event.
 
@@ -481,4 +473,51 @@ p <- ggplot(finalplotdt,aes(x = health, y = economic)) +
 g <- arrangeGrob(p, sub = textGrob("Note: log10 transofmration applied to both axes - 95% confidence interval.", x = 0, hjust = -0.1, vjust=-0.5, gp = gpar(fontface = "italic", fontsize = 10)))
 ```
 
-![](./README_files/figure-html/plotlast-1.png) 
+![](README_files/figure-html/plotlast-1.png) 
+
+The analysis therefore yields the following pieces of insight:
+
+1. Tornadoes have historically been responsible for a large number of health damage (injuries & deaths). However, there seems to be a lack of data for these sort of instances prior to 1992, so performing this sort of analysis on a total, historical basis may seem misleading. The roles of floods and heat-related catastrophes may be over-shadowed by such a bias in the data.
+2. Floods and hurricanes are by far historically (and on total, available data) the two types of events most responsible for economic damage.
+3. Note the 3-year binning means the latest range of data (2010-2011) would still include one more year worth of data once it becomes available.
+4. The scatter-plot of average damages per event type reveals the sort of events a government would need to focus on if they were keen to enforce a prevention/reaction policy to deal with each type. Ice storms and hurricanes appear to be serious enough on both dimensions to merit special attention. Events like lightning seem to be of the type that could be addressed with intensive information campaigns as all that needs to be addressed is the impact on health.
+
+# References
+
+GitHub link for all code relating to this analysis: [StormData Github](https://github.com/Jamamel/StormData)
+
+
+# System Setup
+
+For replication purposes, below is the session info relating to packages required for analysis.
+
+
+```
+## R version 3.1.1 (2014-07-10)
+## Platform: x86_64-w64-mingw32/x64 (64-bit)
+## 
+## locale:
+## [1] LC_COLLATE=English_United States.1252 
+## [2] LC_CTYPE=English_United States.1252   
+## [3] LC_MONETARY=English_United States.1252
+## [4] LC_NUMERIC=C                          
+## [5] LC_TIME=English_United States.1252    
+## 
+## attached base packages:
+## [1] grid      stats     graphics  grDevices utils     datasets  methods  
+## [8] base     
+## 
+## other attached packages:
+## [1] gridExtra_0.9.1  scales_0.2.4     ggplot2_1.0.0    reshape2_1.4    
+## [5] magrittr_1.0.1   lubridate_1.3.3  data.table_1.9.4 knitr_1.8       
+## 
+## loaded via a namespace (and not attached):
+##  [1] chron_2.3-45       colorspace_1.2-4   digest_0.6.4      
+##  [4] evaluate_0.5.5     formatR_1.0        gtable_0.1.2      
+##  [7] htmltools_0.2.6    labeling_0.3       MASS_7.3-33       
+## [10] memoise_0.2.1      munsell_0.4.2      plyr_1.8.1        
+## [13] proto_0.3-10       RColorBrewer_1.0-5 Rcpp_0.11.3       
+## [16] rmarkdown_0.3.11   stringr_0.6.2      tools_3.1.1       
+## [19] yaml_2.1.13
+```
+
